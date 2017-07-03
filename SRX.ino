@@ -12,18 +12,18 @@
 //ヘッドライト関連
 const int PIN_ANALOG_INPUT_CDS_SENSOR = 14;                 //CDSからの電圧
 const int PIN_ANALOG_INPUT_HEADLIGHT_ONOFF_THRESHOLD = 15;  //5Vを半固定抵抗で分圧した、ヘッドライトOn/Offの閾値電圧
-const int PIN_DIGITAL_OUTPUT_HEADLIGHT_SW = 9;              //ヘッドライトのリレー
+const int PIN_DIGITAL_OUTPUT_HEADLIGHT_RELAY = 9;              //ヘッドライトのリレー
 int prevState = LOW;
 int currentState = LOW;
 bool timerStart = false;
 long timer = 0;
 
 //ウインカー関連
-const int PIN_DIGITAL_INPUT_TURNSIGNAL_LEFT = 7;            //ウインカー左スイッチからの信号
-const int PIN_DIGITAL_INPUT_TURNSIGNAL_RIGHT = 8;           //ウインカー右スイッチからの信号
-const int PIN_DIGITAL_INPUT_TURNSIGNAL_CANCEL = 4;          //ウインカーキャンセルスイッチからの信号
-const int PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_SW = 6;        //ウインカー左のリレー
-const int PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_SW = 5;       //ウインカー右のリレー
+const int PIN_DIGITAL_INPUT_TURNSIGNAL_LEFT_SW = 7;            //ウインカー左スイッチからの信号
+const int PIN_DIGITAL_INPUT_TURNSIGNAL_RIGHT_SW = 8;           //ウインカー右スイッチからの信号
+const int PIN_DIGITAL_INPUT_TURNSIGNAL_CANCEL_SW = 4;          //ウインカーキャンセルスイッチからの信号
+const int PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_RELAY = 6;        //ウインカー左のリレー
+const int PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_RELAY = 5;       //ウインカー右のリレー
 
 //速度計測
 const int PIN_INTERRUPT_SPEED = 2;
@@ -31,15 +31,15 @@ volatile long wheelCount = 0;
 
 /* setup() */
 void setup() {
-  pinMode(PIN_DIGITAL_OUTPUT_HEADLIGHT_SW, OUTPUT);
+  pinMode(PIN_DIGITAL_OUTPUT_HEADLIGHT_RELAY, OUTPUT);
   
-  pinMode(PIN_DIGITAL_INPUT_TURNSIGNAL_LEFT, INPUT);
-  pinMode(PIN_DIGITAL_INPUT_TURNSIGNAL_RIGHT, INPUT);
-  pinMode(PIN_DIGITAL_INPUT_TURNSIGNAL_CANCEL, INPUT);  
-  pinMode(PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_SW, OUTPUT);
-  pinMode(PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_SW, OUTPUT);
+  pinMode(PIN_DIGITAL_INPUT_TURNSIGNAL_LEFT_SW, INPUT);
+  pinMode(PIN_DIGITAL_INPUT_TURNSIGNAL_RIGHT_SW, INPUT);
+  pinMode(PIN_DIGITAL_INPUT_TURNSIGNAL_CANCEL_SW, INPUT);  
+  pinMode(PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_RELAY, OUTPUT);
+  pinMode(PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_RELAY, OUTPUT);
   
-  attachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT_SPEED), wheelCounter, RISING );
+  //attachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT_SPEED), wheelCounter, RISING );
   
   Serial.begin( 9600 );
 }
@@ -94,7 +94,7 @@ void headLightControl() {
   if (timerStart && 
         currentState = HIGH &&
           (millis() - timer > 1500)) {
-    digitalWrite(PIN_DIGITAL_OUTPUT_HEADLIGHT_SW, HIGH);
+    digitalWrite(PIN_DIGITAL_OUTPUT_HEADLIGHT_RELAY, HIGH);
     timerStart = false;
   }
 
@@ -103,7 +103,7 @@ void headLightControl() {
   if (timerStart && 
         currentState = LOW &&
           (millis() - timer > 3000)) {
-    digitalWrite(PIN_DIGITAL_OUTPUT_HEADLIGHT_SW, LOW);
+    digitalWrite(PIN_DIGITAL_OUTPUT_HEADLIGHT_RELAY, LOW);
     timerStart = false;
   }
 }
@@ -117,27 +117,27 @@ void headLightControl() {
 */
 void turnSignalControl() {
   // 左ウインカースイッチのチェック
-  int tl = digitalRead(PIN_DIGITAL_INPUT_TURNSIGNAL_LEFT);
+  int tl = digitalRead(PIN_DIGITAL_INPUT_TURNSIGNAL_LEFT_SW);
   if (tl == HIGH) {
     //Serial.println( "LEFT ON" );
-    digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_SW, HIGH);
-    digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_SW, LOW);
+    digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_RELAY, HIGH);
+    digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_RELAY, LOW);
   }
 
   // 右ウインカースイッチのチェック
-  int tr = digitalRead(PIN_DIGITAL_INPUT_TURNSIGNAL_RIGHT);
+  int tr = digitalRead(PIN_DIGITAL_INPUT_TURNSIGNAL_RIGHT_SW);
   if (tr == HIGH) {
     //Serial.println( "RIGHT ON" );
-    digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_SW, LOW);
-    digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_SW, HIGH);
+    digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_RELAY, LOW);
+    digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_RELAY, HIGH);
   }
   
   // ウインカーキャンセルスイッチのチェック
-  int tc = digitalRead(PIN_DIGITAL_INPUT_TURNSIGNAL_CANCEL);
+  int tc = digitalRead(PIN_DIGITAL_INPUT_TURNSIGNAL_CANCEL_SW);
   if (tc == HIGH) {
     //Serial.println( "CANCEL" );    
-    digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_SW, LOW);
-    digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_SW, LOW);
+    digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_RELAY, LOW);
+    digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_RELAY, LOW);
   }
 }
 
