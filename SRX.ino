@@ -10,20 +10,20 @@
 */
 
 //ヘッドライト関連
-const int PIN_ANALOG_INPUT_CDS_SENSOR = 14;                 //CDSからの電圧
-const int PIN_ANALOG_INPUT_HEADLIGHT_ONOFF_THRESHOLD = 15;  //5Vを半固定抵抗で分圧した、ヘッドライトOn/Offの閾値電圧
-const int PIN_DIGITAL_OUTPUT_HEADLIGHT_RELAY = 9;              //ヘッドライトのリレー
+const int PIN_ANALOG_INPUT_CDS_SENSOR = 14;                   //CDSからの電圧
+const int PIN_ANALOG_INPUT_HEADLIGHT_ONOFF_THRESHOLD = 15;    //5Vを半固定抵抗で分圧した、ヘッドライトOn/Offの閾値電圧
+const int PIN_DIGITAL_OUTPUT_HEADLIGHT_RELAY = 9;             //ヘッドライトのリレー
 int prevState = LOW;
 int currentState = LOW;
 bool timerStart = false;
 long timer = 0;
 
 //ウインカー関連
-const int PIN_DIGITAL_INPUT_TURNSIGNAL_LEFT_SW = 7;            //ウインカー左スイッチからの信号
-const int PIN_DIGITAL_INPUT_TURNSIGNAL_RIGHT_SW = 8;           //ウインカー右スイッチからの信号
-const int PIN_DIGITAL_INPUT_TURNSIGNAL_CANCEL_SW = 4;          //ウインカーキャンセルスイッチからの信号
-const int PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_RELAY = 6;        //ウインカー左のリレー
-const int PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_RELAY = 5;       //ウインカー右のリレー
+const int PIN_DIGITAL_INPUT_TURNSIGNAL_LEFT_SW = 7;           //ウインカー左スイッチからの信号
+const int PIN_DIGITAL_INPUT_TURNSIGNAL_RIGHT_SW = 8;          //ウインカー右スイッチからの信号
+const int PIN_DIGITAL_INPUT_TURNSIGNAL_CANCEL_SW = 4;         //ウインカーキャンセルスイッチからの信号
+const int PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_RELAY = 6;       //ウインカー左のリレー
+const int PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_RELAY = 5;      //ウインカー右のリレー
 
 //速度計測
 const int PIN_INTERRUPT_SPEED = 2;
@@ -92,7 +92,7 @@ void headLightControl() {
   /* ヘッドライトの点灯チェック */
   //0.5秒暗い状態が続いたらヘッドライトを点灯
   if (timerStart && 
-        currentState = HIGH &&
+        currentState == HIGH &&
           (millis() - timer > 1500)) {
     digitalWrite(PIN_DIGITAL_OUTPUT_HEADLIGHT_RELAY, HIGH);
     timerStart = false;
@@ -101,7 +101,7 @@ void headLightControl() {
   /* ヘッドライトの消灯チェック */
   //3秒明るい状態が続いたらヘッドライトを消灯
   if (timerStart && 
-        currentState = LOW &&
+        currentState == LOW &&
           (millis() - timer > 3000)) {
     digitalWrite(PIN_DIGITAL_OUTPUT_HEADLIGHT_RELAY, LOW);
     timerStart = false;
