@@ -1,13 +1,14 @@
 /*
-  Arduino Pro Miniにて、
-    バイクの
-      ・ヘッドライトの自動点灯
-      ・ウインカーのOn/Off
-        →自動キャンセル(未実装)
-    を行う
-
-    created 2017/07/02 高橋夏彦
-*/
+ * Arduino Pro Miniにて、
+ *  バイクの
+ *    ・ヘッドライトの自動点灯
+ *    ・ウインカーのOn/Off
+ *      →自動キャンセル(未実装)
+ *  を行う
+ *
+ *  created 2017/07/02 高橋夏彦
+ *  updated 2017/07/15 速度計測対応
+ */
 
 //ヘッドライト関連
 const int PIN_ANALOG_INPUT_CDS_SENSOR = 14;                   //CDSからの電圧
@@ -26,8 +27,13 @@ const int PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_RELAY = 6;       //ウインカー�
 const int PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_RELAY = 5;      //ウインカー右のリレー
 
 //速度計測
-const int PIN_INTERRUPT_SPEED = 2;
-volatile long wheelCount = 0;
+const int PIN_INTERRUPT_SPEED_PULSE = 2;                      //回転速度センサーからの割込みピン
+const float NUMBER_OF_PULSES_PER_ROTATION = 19.0;             //一回転当たりのパルス数(ドライブスプロケットの丁数)
+const float DISTANCE_PER_ROTATION =1.5;                       //一回転当たりに進む距離(単位:m)
+volatile long pulseCount = 0;                                 //回転速度センサーからのパルス数
+long speedPulseTimer = 0;
+int movingSpeed = 0;
+
 
 /* setup() */
 void setup() {
@@ -39,7 +45,7 @@ void setup() {
   pinMode(PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_RELAY, OUTPUT);
   pinMode(PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_RELAY, OUTPUT);
   
-  attachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT_SPEED), wheelCounter, RISING );
+  attachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT_SPEED_PULSE), pulseCounter, RISING );
   
   Serial.begin( 9600 );
 }
@@ -54,33 +60,32 @@ void loop() {
   //ウインカーの制御
   turnSignalControl();
 
-  Serial.println( wheelCount );
+  //車速の計算
+  calcMovingSpeed();
+
+  Serial.println( movingSpeed );
 }
 
 /*
-  headLightControl ヘッドライトの制御
-    CDSからの電圧をチェックし、一定時間、閾値を上回ったらヘッドライトを点灯する
-                  〃                           下回ったらヘッドライトを消灯する
-*/
+ * headLightControl ヘッドライトの制御
+ *   CDSからの電圧をチェックし、一定時間、閾値を上回ったらヘッドライトを点灯する
+ *                 〃                           下回ったらヘッドライトを消灯する
+ */
 void headLightControl() {
   int i = 0;
   
   //CDSの電圧
   i = analogRead(PIN_ANALOG_INPUT_CDS_SENSOR);
-  float f = i * 5.0 / 1023.0;
-  //Serial.print( "CDS:" );
-  //Serial.println( f );
+  float cdsV = i * 5.0 / 1023.0;
 
   //ON/OFF閾値 
   i = analogRead(PIN_ANALOG_INPUT_HEADLIGHT_ONOFF_THRESHOLD);
   float threshold = i * 5.0 / 1023.0;
-  //Serial.print( "Thrhld:" );
-  //Serial.println( threshold );
 
   prevState = currentState;
-  if (f > threshold) {
+  if (cdsV > threshold) {
     currentState = HIGH;
-  } else if (f < threshold - 0.2) {
+  } else if (cdsV < threshold - 0.2) {
     currentState = LOW;
   }
 
@@ -90,7 +95,7 @@ void headLightControl() {
   }
 
   /* ヘッドライトの点灯チェック */
-  //0.5秒暗い状態が続いたらヘッドライトを点灯
+  //1秒暗い状態が続いたらヘッドライトを点灯
   if (timerStart && 
         currentState == HIGH &&
           (millis() - timer > 1000)) {
@@ -99,7 +104,7 @@ void headLightControl() {
   }
 
   /* ヘッドライトの消灯チェック */
-  //3秒明るい状態が続いたらヘッドライトを消灯
+  //2.5秒明るい状態が続いたらヘッドライトを消灯
   if (timerStart && 
         currentState == LOW &&
           (millis() - timer > 2500)) {
@@ -109,17 +114,16 @@ void headLightControl() {
 }
 
 /*
-  turnSignalControl ウインカーの制御
-    左ウインカースイッチ
-    右ウインカースイッチ
-    ウインカーキャンセルスイッチ
-    からの信号をチェックし、それぞれの信号に従い、ウインカーをOn/Offする
-*/
+ * turnSignalControl ウインカーの制御
+ *   左ウインカースイッチ
+ *   右ウインカースイッチ
+ *   ウインカーキャンセルスイッチ
+ *   からの信号をチェックし、それぞれの信号に従い、ウインカーをOn/Offする
+ */
 void turnSignalControl() {
   // 左ウインカースイッチのチェック
   int tl = digitalRead(PIN_DIGITAL_INPUT_TURNSIGNAL_LEFT_SW);
   if (tl == HIGH) {
-    //Serial.println( "LEFT ON" );
     digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_RELAY, HIGH);
     digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_RELAY, LOW);
   }
@@ -127,7 +131,6 @@ void turnSignalControl() {
   // 右ウインカースイッチのチェック
   int tr = digitalRead(PIN_DIGITAL_INPUT_TURNSIGNAL_RIGHT_SW);
   if (tr == HIGH) {
-    //Serial.println( "RIGHT ON" );
     digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_RELAY, LOW);
     digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_RELAY, HIGH);
   }
@@ -135,18 +138,27 @@ void turnSignalControl() {
   // ウインカーキャンセルスイッチのチェック
   int tc = digitalRead(PIN_DIGITAL_INPUT_TURNSIGNAL_CANCEL_SW);
   if (tc == HIGH) {
-    //Serial.println( "CANCEL" );    
     digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_RELAY, LOW);
     digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_RELAY, LOW);
   }
 }
 
 /*
-  wheelCounter 速度計測のための割込み処理
-    今後の作業
+ * calcMovingSpeed 車速の計算
+ */
+void calcMovingSpeed() {
+  if (millis() - speedPulseTimer > 500) {
+    movingSpeed =  pulseCount / NUMBER_OF_PULSES_PER_ROTATION * DISTANCE_PER_ROTATION;
+    speedPulseTimer = millis();
+    pulseCount = 0;
+  }
+}
+
+/*
+ * pulseCounter 速度計測のための割込み処理
 */
-void wheelCounter() {
-  wheelCount += 1;
+void pulseCounter() {
+  pulseCount += 1;
 }
 
 
