@@ -39,14 +39,14 @@ void setup() {
   pinMode(PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_RELAY, OUTPUT);
   pinMode(PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_RELAY, OUTPUT);
   
-  //attachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT_SPEED), wheelCounter, RISING );
+  attachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT_SPEED), wheelCounter, RISING );
   
   Serial.begin( 9600 );
 }
 
 /* loop() */
 void loop() {
-  //delay(500);
+  delay(1000);
 
   //ヘッドライトの制御
   headLightControl();
@@ -54,7 +54,7 @@ void loop() {
   //ウインカーの制御
   turnSignalControl();
 
-  //Serial.println( wheelCount );
+  Serial.println( wheelCount );
 }
 
 /*
@@ -80,7 +80,7 @@ void headLightControl() {
   prevState = currentState;
   if (f > threshold) {
     currentState = HIGH;
-  } else if (f < threshold - 0.3) {
+  } else if (f < threshold - 0.2) {
     currentState = LOW;
   }
 
@@ -93,7 +93,7 @@ void headLightControl() {
   //0.5秒暗い状態が続いたらヘッドライトを点灯
   if (timerStart && 
         currentState == HIGH &&
-          (millis() - timer > 1500)) {
+          (millis() - timer > 1000)) {
     digitalWrite(PIN_DIGITAL_OUTPUT_HEADLIGHT_RELAY, HIGH);
     timerStart = false;
   }
@@ -102,7 +102,7 @@ void headLightControl() {
   //3秒明るい状態が続いたらヘッドライトを消灯
   if (timerStart && 
         currentState == LOW &&
-          (millis() - timer > 3000)) {
+          (millis() - timer > 2500)) {
     digitalWrite(PIN_DIGITAL_OUTPUT_HEADLIGHT_RELAY, LOW);
     timerStart = false;
   }
