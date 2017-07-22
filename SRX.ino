@@ -53,8 +53,6 @@ void loop() {
 
   //ウインカーの制御
   turnSignalControl();
-
-  //Serial.println( wheelCount );
 }
 
 /*
@@ -68,19 +66,15 @@ void headLightControl() {
   //CDSの電圧
   i = analogRead(PIN_ANALOG_INPUT_CDS_SENSOR);
   float f = i * 5.0 / 1023.0;
-  //Serial.print( "CDS:" );
-  //Serial.println( f );
 
   //ON/OFF閾値 
   i = analogRead(PIN_ANALOG_INPUT_HEADLIGHT_ONOFF_THRESHOLD);
   float threshold = i * 5.0 / 1023.0;
-  //Serial.print( "Thrhld:" );
-  //Serial.println( threshold );
 
   prevState = currentState;
   if (f > threshold) {
     currentState = HIGH;
-  } else if (f < threshold - 0.3) {
+  } else if (f < threshold - 0.2) {
     currentState = LOW;
   }
 
@@ -119,7 +113,6 @@ void turnSignalControl() {
   // 左ウインカースイッチのチェック
   int tl = digitalRead(PIN_DIGITAL_INPUT_TURNSIGNAL_LEFT_SW);
   if (tl == HIGH) {
-    //Serial.println( "LEFT ON" );
     digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_RELAY, HIGH);
     digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_RELAY, LOW);
   }
@@ -127,7 +120,6 @@ void turnSignalControl() {
   // 右ウインカースイッチのチェック
   int tr = digitalRead(PIN_DIGITAL_INPUT_TURNSIGNAL_RIGHT_SW);
   if (tr == HIGH) {
-    //Serial.println( "RIGHT ON" );
     digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_RELAY, LOW);
     digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_RELAY, HIGH);
   }
@@ -135,7 +127,6 @@ void turnSignalControl() {
   // ウインカーキャンセルスイッチのチェック
   int tc = digitalRead(PIN_DIGITAL_INPUT_TURNSIGNAL_CANCEL_SW);
   if (tc == HIGH) {
-    //Serial.println( "CANCEL" );    
     digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_RELAY, LOW);
     digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_RELAY, LOW);
   }
