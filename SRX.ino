@@ -28,8 +28,7 @@ const int PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_RELAY = 5;      //ウインカー�
 
 //速度計測
 const int PIN_INTERRUPT_SPEED_PULSE = 2;                      //回転速度センサーからの割込みピン
-const float NUMBER_OF_PULSES_PER_ROTATION = 19.0;             //一回転当たりのパルス数(ドライブスプロケットの丁数)
-const float DISTANCE_PER_ROTATION =1.5;                       //一回転当たりに進む距離(単位:m)
+const float NUMBER_OF_PULSES_PER_METER = 23.0;                //1mあたりのパルス数(ドライブスプロケットからの検出数)
 volatile long pulseCount = 0;                                 //回転速度センサーからのパルス数
 long speedPulseTimer = 0;
 int movingSpeed = 0;
@@ -147,8 +146,15 @@ void turnSignalControl() {
  * calcMovingSpeed 車速の計算
  */
 void calcMovingSpeed() {
-  if (millis() - speedPulseTimer > 500) {
-    movingSpeed =  pulseCount / NUMBER_OF_PULSES_PER_ROTATION * DISTANCE_PER_ROTATION;
+  //単位:ミリ秒
+  const int oneHour = 3600000;
+  const int interval = 500;
+  
+  if (millis() - speedPulseTimer > interval) {
+    float m = pulseCount / NUMBER_OF_PULSES_PER_METER;
+    //時速に変換
+    movingSpeed = m * 1000 / oneHour;
+    
     speedPulseTimer = millis();
     pulseCount = 0;
   }
