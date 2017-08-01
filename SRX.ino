@@ -146,8 +146,7 @@ void turnSignalControl() {
  * calcMovingSpeed 車速の計算
  */
 void calcMovingSpeed() {
-  //単位:ミリ秒
-  const int oneHour = 3600000;
+  //計測間隔 (単位:ミリ秒)
   const int interval = 500;
   
   if (millis() - speedPulseTimer > interval) {
@@ -156,7 +155,7 @@ void calcMovingSpeed() {
     
     //時速に変換
     // 「interval(ミリ秒)の間に進んだ距離」を「1秒で進んだ距離」に換算し、km/hを計算
-    movingSpeed = (m * (1000 / interval) * 1000) / oneHour;
+    movingSpeed = (m * (1000 / interval) / 1000) * 3600;
     
     speedPulseTimer = millis();
     pulseCount = 0;
