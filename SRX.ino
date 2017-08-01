@@ -151,9 +151,12 @@ void calcMovingSpeed() {
   const int interval = 500;
   
   if (millis() - speedPulseTimer > interval) {
+    //interval(ミリ秒)の間に何メートル進んだか
     float m = pulseCount / NUMBER_OF_PULSES_PER_METER;
+    
     //時速に変換
-    movingSpeed = m * 1000 / oneHour;
+    // 「interval(ミリ秒)の間に進んだ距離」を「1秒で進んだ距離」に換算し、km/hを計算
+    movingSpeed = (m * (1000 / interval) * 1000) / oneHour;
     
     speedPulseTimer = millis();
     pulseCount = 0;
