@@ -51,7 +51,7 @@ void setup() {
 
 /* loop() */
 void loop() {
-  delay(1000);
+  //delay(1000);
 
   //ヘッドライトの制御
   headLightControl();
@@ -62,7 +62,6 @@ void loop() {
   //車速の計算
   calcMovingSpeed();
 
-  Serial.println( movingSpeed );
 }
 
 /*
@@ -150,6 +149,8 @@ void calcMovingSpeed() {
   const int interval = 500;
   
   if (millis() - speedPulseTimer > interval) {
+    Serial.print( pulseCount + ":" );
+    
     //interval(ミリ秒)の間に何メートル進んだか
     float m = pulseCount / NUMBER_OF_PULSES_PER_METER;
     
@@ -159,6 +160,8 @@ void calcMovingSpeed() {
     
     speedPulseTimer = millis();
     pulseCount = 0;
+    
+    Serial.println( movingSpeed );
   }
 }
 
