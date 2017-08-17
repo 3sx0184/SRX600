@@ -26,7 +26,7 @@ const int PIN_DIGITAL_INPUT_TURNSIGNAL_CANCEL_SW = 4;         //ウインカー�
 const int PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_RELAY = 6;       //ウインカー左のリレー
 const int PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_RELAY = 5;      //ウインカー右のリレー
 enum TurnSignalState {OFF = 0, ON = 1};                       //ウインカーの状態
-TurnSignalState tunsignalState = TurnSignalState.OFF;
+TurnSignalState turnSignalState = TurnSignalState::OFF;
 
 //速度計測
 const int PIN_INTERRUPT_SPEED_PULSE = 2;                      //回転速度センサーからの割込みピン
@@ -129,7 +129,7 @@ void turnSignalControl() {
   if (tl == HIGH) {
     digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_RELAY, HIGH);
     digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_RELAY, LOW);
-    turnsignaleState = TurnsignaleState::ON;
+    turnSignalState = TurnSignalState::ON;
   }
 
   // 右ウインカースイッチのチェック
@@ -137,7 +137,7 @@ void turnSignalControl() {
   if (tr == HIGH) {
     digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_RELAY, LOW);
     digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_RELAY, HIGH);
-    turnsignaleState = TurnsignaleState::ON;
+    turnSignalState = TurnSignalState::ON;
   }
   
   // ウインカーキャンセルスイッチのチェック
@@ -145,7 +145,7 @@ void turnSignalControl() {
   if (tc == HIGH) {
     digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_RELAY, LOW);
     digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_RELAY, LOW);
-    turnsignaleState = TurnsignaleState::OFF;
+    turnSignalState = TurnSignalState::OFF;
   }
 }
 
@@ -189,7 +189,7 @@ void turnSignalAutoCancelControl() {
   static int prevSpeed = 0;                                //前回チェックした際の速度
   
   //ウインカーがOFFなら何もしない
-  if (turnsignaleState == TurnsignaleState.OFF) return;
+  if (turnSignalState == TurnSignalState::OFF) return;
   
   //前回チェックした際の速度と現在の速度を比較し、走行状態を判定
   if (currentSpeed == 0) {
@@ -213,7 +213,7 @@ void turnSignalAutoCancelControl() {
            currentSpeedState == SpeedState::KEEP)) {
     digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_RELAY, LOW);
     digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_RELAY, LOW);
-    turnsignaleState = TurnsignaleState::OFF;
+    turnSignalState = TurnSignalState::OFF;
   }
   
   prevSpeedState = currentSpeedState;
