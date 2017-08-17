@@ -26,7 +26,7 @@ const int PIN_DIGITAL_INPUT_TURNSIGNAL_CANCEL_SW = 4;         //ウインカー�
 const int PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_RELAY = 6;       //ウインカー左のリレー
 const int PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_RELAY = 5;      //ウインカー右のリレー
 enum TurnSignalState {OFF = 0, ON = 1};                       //ウインカーの状態
-TurnSignalState tunsignalState = TURNSIGNAL_STATE.OFF;
+TurnSignalState tunsignalState = TurnSignalState.OFF;
 
 //速度計測
 const int PIN_INTERRUPT_SPEED_PULSE = 2;                      //回転速度センサーからの割込みピン
