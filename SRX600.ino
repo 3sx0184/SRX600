@@ -25,13 +25,18 @@ const int PIN_DIGITAL_INPUT_TURNSIGNAL_RIGHT_SW = 8;          //ウインカー�
 const int PIN_DIGITAL_INPUT_TURNSIGNAL_CANCEL_SW = 4;         //ウインカーキャンセルスイッチからの信号
 const int PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_RELAY = 6;       //ウインカー左のリレー
 const int PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_RELAY = 5;      //ウインカー右のリレー
+enum TurnSignalState {OFF = 0, ON = 1};                       //ウインカーの状態
+TurnSignalState tunsignalState = TURNSIGNAL_STATE.OFF;
 
 //速度計測
 const int PIN_INTERRUPT_SPEED_PULSE = 2;                      //回転速度センサーからの割込みピン
 const float NUMBER_OF_PULSES_PER_METER = 23.0;                //1mあたりのパルス数(ドライブスプロケットからの検出数)
 volatile long pulseCount = 0;                                 //回転速度センサーからのパルス数
 long speedPulseTimer = 0;
-int movingSpeed = 0;
+int currentSpeed = 0;
+
+//ウインカーオートキャンセル
+enum SpeedState {UP = 0, DOWN = 1, KEEP = 2, STOP = 3};       //車速変化の状態(加速、減速、等速、停止)
 
 
 /* setup() */
@@ -124,6 +129,7 @@ void turnSignalControl() {
   if (tl == HIGH) {
     digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_RELAY, HIGH);
     digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_RELAY, LOW);
+    turnsignaleState = TurnsignaleState::ON;
   }
 
   // 右ウインカースイッチのチェック
@@ -131,6 +137,7 @@ void turnSignalControl() {
   if (tr == HIGH) {
     digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_RELAY, LOW);
     digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_RELAY, HIGH);
+    turnsignaleState = TurnsignaleState::ON;
   }
   
   // ウインカーキャンセルスイッチのチェック
@@ -138,6 +145,7 @@ void turnSignalControl() {
   if (tc == HIGH) {
     digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_RELAY, LOW);
     digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_RELAY, LOW);
+    turnsignaleState = TurnsignaleState::OFF;
   }
 }
 
@@ -149,19 +157,17 @@ void calcMovingSpeed() {
   const int interval = 500;
   
   if (millis() - speedPulseTimer > interval) {
-    Serial.print( pulseCount + ":" );
-    
     //interval(ミリ秒)の間に何メートル進んだか
     float m = pulseCount / NUMBER_OF_PULSES_PER_METER;
     
     //時速に変換
     // 「interval(ミリ秒)の間に進んだ距離」を「1秒で進んだ距離」に換算し、km/hを計算
-    movingSpeed = (m * (1000 / interval) / 1000) * 3600;
+    currentSpeed = (m * (1000 / interval) / 1000) * 3600;
     
     speedPulseTimer = millis();
     pulseCount = 0;
     
-    Serial.println( movingSpeed );
+    Serial.println( currentSpeed );
   }
 }
 
@@ -172,4 +178,45 @@ void pulseCounter() {
   pulseCount += 1;
 }
 
+/*
+ * turnSignalAutoCancelControl ウインカーオートキャンセルの制御
+ *   加速/等速状態が一定の時間維持されたら、ウインカーをOffする
+ */
+void turnSignalAutoCancelControl() {
+  static SpeedState currentSpeedState = SpeedState::STOP;  //車速変化の現在の状態
+  static SpeedState prevSpeedState = SpeedState::STOP;     //車速変化の前回チェックした際の状態
+  static long speedChangeTimer = 0;                        //速度変化の継続時間測定用タイマー開始時間
+  static int prevSpeed = 0;                                //前回チェックした際の速度
+  
+  //ウインカーがOFFなら何もしない
+  if (turnsignaleState == TurnsignaleState.OFF) return;
+  
+  //前回チェックした際の速度と現在の速度を比較し、走行状態を判定
+  if (currentSpeed == 0) {
+    currentSpeedState = SpeedState::STOP;
+  } else if (prevSpeed == currentSpeed) {
+    currentSpeedState = SpeedState::KEEP;
+  } else if (prevSpeed < currentSpeed) {
+    currentSpeedState = SpeedState::UP;
+  } else {
+    currentSpeedState = SpeedState::DOWN;
+  }
+  
+  //前回チェックした際と走行状態が異なっていたら、タイマースタート
+  if (prevSpeedState != currentSpeedState) {
+    speedChangeTimer = millis();
+  }
+  
+  //3秒間、等速/加速状態が続いたら、ウインカーOFF
+  if ((millis() - speedChangeTimer > 3000) &&
+        (currentSpeedState == SpeedState::UP ||
+           currentSpeedState == SpeedState::KEEP)) {
+    digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_RELAY, LOW);
+    digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_RELAY, LOW);
+    turnsignaleState = TurnsignaleState::OFF;
+  }
+  
+  prevSpeedState = currentSpeedState;
+  prevSpeed = currentSpeed;
+}
 
