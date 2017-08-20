@@ -22,7 +22,8 @@ const int PIN_DIGITAL_INPUT_TURNSIGNAL_CANCEL_SW = 4;         //ウインカー�
 const int PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_RELAY = 6;       //ウインカー左のリレー
 const int PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_RELAY = 5;      //ウインカー右のリレー
 enum ETurnSignalState {OFF = 0, ON = 1};                      //ウインカーの状態
-ETurnSignalState TurnSignalState = ETurnSignalState::OFF;
+ETurnSignalState CurrentTurnSignalState
+                                = ETurnSignalState::OFF;
 
 //速度計測関連
 const int PIN_INTERRUPT_SPEED_PULSE = 2;                      //回転速度センサーからの割込みピン
@@ -77,8 +78,8 @@ void loop() {
   turnSignalAutoCancelControl();
   
   //デバッグコード
-  Serial.println( CurrentSpeed );
-  
+//  Serial.println( CurrentSpeed );
+//  
 //  if ( CurrentSpeedState == ESpeedState::KEEP ) {
 //    Serial.println( "KEEP" );
 //  } else if ( CurrentSpeedState == ESpeedState::STOP_OR_SLOW ) {
@@ -88,6 +89,7 @@ void loop() {
 //  } else {
 //    Serial.println( "DOWN" );
 //  }
+
 }
 
 
@@ -158,7 +160,7 @@ void turnSignalControl() {
   if (tl == HIGH) {
     digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_RELAY, HIGH);
     digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_RELAY, LOW);
-    TurnSignalState = ETurnSignalState::ON;
+    CurrentTurnSignalState = ETurnSignalState::ON;
   }
 
   // 右ウインカースイッチのチェック
@@ -166,7 +168,7 @@ void turnSignalControl() {
   if (tr == HIGH) {
     digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_RELAY, LOW);
     digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_RELAY, HIGH);
-    TurnSignalState = ETurnSignalState::ON;
+    CurrentTurnSignalState = ETurnSignalState::ON;
   }
   
   // ウインカーキャンセルスイッチのチェック
@@ -174,7 +176,7 @@ void turnSignalControl() {
   if (tc == HIGH) {
     digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_RELAY, LOW);
     digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_RELAY, LOW);
-    TurnSignalState = ETurnSignalState::OFF;
+    CurrentTurnSignalState = ETurnSignalState::OFF;
   }
 }
 
@@ -198,31 +200,36 @@ void calcMovingSpeed() {
     //時速に変換
     // 「interval(ミリ秒)の間に進んだ距離」を「1秒で進んだ距離」に換算し、km/hを計算
     aveSpeed[aveIndex] = (m * (1000 / interval) / 1000) * 3600;
+    
     //過去4回の計測分の平均を計算し、現在の速度とする
     float sum = 0;
     for ( int i = 0; i <= aveLength - 1; i++ ) {
       sum = sum + aveSpeed[i];
     }
+    
     CurrentSpeed = sum / aveLength;
     
     aveIndex++;
-    if ( aveIndex = aveLength ) { aveIndex = 0; }
+    if ( aveIndex == aveLength ) { aveIndex = 0; }
     
     
     //前回チェックした際の速度と現在の速度を比較し、走行状態を判定
-    if ( CurrentSpeed >= prevSpeed - 1 && 
-          CurrentSpeed <= prevSpeed + 1 ) {
+    if (CurrentSpeed <= 18) {
+      //停止、または徐行中（18km/h以下）
+      CurrentSpeedState = ESpeedState::STOP_OR_SLOW;
+      
+    } else if ( CurrentSpeed == prevSpeed ) {
       //等速運転中
       CurrentSpeedState = ESpeedState::KEEP;
-    } else if (CurrentSpeed <= 20) {
-      //停止、または徐行中
-      CurrentSpeedState = ESpeedState::STOP_OR_SLOW;
-    } else if (prevSpeed < CurrentSpeed) {
+      
+    } else if ( prevSpeed < CurrentSpeed ) {
       //加速中
       CurrentSpeedState = ESpeedState::UP;
+      
     } else {
       //減速中
       CurrentSpeedState = ESpeedState::DOWN;
+      
     }
 
     prevSpeed = CurrentSpeed;
@@ -234,7 +241,7 @@ void calcMovingSpeed() {
 
 /*
  * pulseCounter 速度計測のための割込み処理
-*/
+ */
 void pulseCounter() {
   PulseCount += 1;
 }
@@ -242,41 +249,57 @@ void pulseCounter() {
 
 /*
  * turnSignalAutoCancelControl ウインカーオートキャンセルの制御
- *   加速/等速状態が一定の時間維持されたら、ウインカーをOffする
  */
 void turnSignalAutoCancelControl() {
-  static ESpeedState prevSpeedState = ESpeedState::STOP_OR_SLOW;  //車速変化の前回チェックした際の状態
+  static ESpeedState prevSpeedState = ESpeedState::STOP_OR_SLOW;        //車速変化の前回チェックした際の状態
+  static ETurnSignalState prevTurnSignalState = ETurnSignalState::OFF;  //ウインカーの　〃
   static bool timerStart = false;
   static long timer = 0;
-  
-  //ウインカーがOFFなら何もしない
-  if (TurnSignalState == ETurnSignalState::OFF) return;
+  static int lightingTime = 0;
 
-  //前回チェックした際と走行状態が異なっていたら、タイマースタート
+  //走行中にウインカースイッチをOFF→ON
+  if (CurrentTurnSignalState == ETurnSignalState::ON &&
+        prevTurnSignalState != CurrentTurnSignalState) {
+    //タイマースタート
+    timer = millis();
+    timerStart = true;
+
+    //2秒後にOFF
+    lightingTime = 2000;
+  }
+
+  //「減速/停止/徐行中」から「加速/等速」状態へ移行したら、タイマースタート
   if ((prevSpeedState == ESpeedState::STOP_OR_SLOW ||
         prevSpeedState == ESpeedState::DOWN) &&
           (CurrentSpeedState == ESpeedState::UP ||
            CurrentSpeedState == ESpeedState::KEEP)) {
-
+    
+    //タイマースタート
     timer = millis();
     timerStart = true;
     
-  } else if (prevSpeedState == ESpeedState::STOP_OR_SLOW || 
-              prevSpeedState == ESpeedState::DOWN) {
+    //1秒後にOFF
+    lightingTime = 1000;
+    
+  } else if (CurrentSpeedState == ESpeedState::STOP_OR_SLOW || 
+              CurrentSpeedState == ESpeedState::DOWN) {
+                
+    //「減速/停止/徐行中」はウインカーOFFしない
     timerStart = false;
     
   }
   
-  //2秒間、等速/加速状態が続いたら、ウインカーOFF
-  if ((millis() - timer > 2000) && timerStart) {
+  //ウインカーOFF判定
+  if ((millis() - timer > lightingTime) && timerStart) {
     //ウインカーOFF
     digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_RELAY, LOW);
     digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_RELAY, LOW);
-    TurnSignalState = ETurnSignalState::OFF;
+    CurrentTurnSignalState = ETurnSignalState::OFF;
     
     timerStart = false;
   }
   
+  prevTurnSignalState = CurrentTurnSignalState;
   prevSpeedState = CurrentSpeedState;
 }
 
