@@ -76,7 +76,18 @@ void loop() {
   //ウインカーオートキャンセル
   turnSignalAutoCancelControl();
   
-  //Serial.println( CurrentSpeed );
+  //デバッグコード
+  Serial.println( CurrentSpeed );
+  
+//  if ( CurrentSpeedState == ESpeedState::KEEP ) {
+//    Serial.println( "KEEP" );
+//  } else if ( CurrentSpeedState == ESpeedState::STOP_OR_SLOW ) {
+//    Serial.println( "STOP_OR_SLOW" );
+//  } else if ( CurrentSpeedState == ESpeedState::UP ) {
+//    Serial.println( "UP" );
+//  } else {
+//    Serial.println( "DOWN" );
+//  }
 }
 
 
@@ -175,6 +186,10 @@ void calcMovingSpeed() {
   const int interval = 250;   //計測間隔 (単位:ミリ秒)
   static int prevSpeed = 0;   //前回チェックした際の速度
   static long timer = 0;
+
+  static float aveSpeed[] = {0, 0, 0, 0};
+  static int aveLength = 4;
+  static int aveIndex = 0;
   
   if (millis() - timer > interval) {
     //interval(ミリ秒)の間に何メートル進んだか
@@ -182,32 +197,34 @@ void calcMovingSpeed() {
     
     //時速に変換
     // 「interval(ミリ秒)の間に進んだ距離」を「1秒で進んだ距離」に換算し、km/hを計算
-    CurrentSpeed = (m * (1000 / interval) / 1000) * 3600;
+    aveSpeed[aveIndex] = (m * (1000 / interval) / 1000) * 3600;
+    //過去4回の計測分の平均を計算し、現在の速度とする
+    float sum = 0;
+    for ( int i = 0; i <= aveLength - 1; i++ ) {
+      sum = sum + aveSpeed[i];
+    }
+    CurrentSpeed = sum / aveLength;
+    
+    aveIndex++;
+    if ( aveIndex = aveLength ) { aveIndex = 0; }
+    
     
     //前回チェックした際の速度と現在の速度を比較し、走行状態を判定
     if ( CurrentSpeed >= prevSpeed - 1 && 
           CurrentSpeed <= prevSpeed + 1 ) {
       //等速運転中
       CurrentSpeedState = ESpeedState::KEEP;
-      Serial.println( "KEEP" );
-      
     } else if (CurrentSpeed <= 20) {
       //停止、または徐行中
       CurrentSpeedState = ESpeedState::STOP_OR_SLOW;
-      Serial.println( "STOP_OR_SLOW" );
-      
     } else if (prevSpeed < CurrentSpeed) {
       //加速中
       CurrentSpeedState = ESpeedState::UP;
-      Serial.println( "UP" );
-      
     } else {
       //減速中
       CurrentSpeedState = ESpeedState::DOWN;
-      Serial.println( "DOWN" );
-      
     }
-    
+
     prevSpeed = CurrentSpeed;
     PulseCount = 0;
     timer = millis();
