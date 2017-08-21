@@ -27,8 +27,8 @@ ETurnSignalState CurrentTurnSignalState
 
 //速度計測関連
 const int PIN_INTERRUPT_SPEED_PULSE = 2;                      //回転速度センサーからの割込みピン
-const float NUMBER_OF_PULSES_PER_METER = 23.0;                //1mあたりのパルス数(ドライブスプロケットからの検出数)
-volatile long PulseCount = 0;                                 //回転速度センサーからのパルス数 
+const int NUMBER_OF_PULSES_PER_METER = 23;                    //1mあたりのパルス数(ドライブスプロケットからの検出数)
+volatile int PulseCount = 0;                                  //回転速度センサーからのパルス数 
 int CurrentSpeed = 0;                                         //現在の車速
 
 //車速変化の状態(加速、減速、等速、停止または徐行中)
