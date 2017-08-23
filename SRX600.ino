@@ -27,9 +27,9 @@ ETurnSignalState CurrentTurnSignalState
 
 //速度計測関連
 const int PIN_INTERRUPT_SPEED_PULSE = 2;                      //回転速度センサーからの割込みピン
-const int NUMBER_OF_PULSES_PER_METER = 23;                    //1mあたりのパルス数(ドライブスプロケットからの検出数)
+const float NUMBER_OF_PULSES_PER_METER = 23.0;                //1mあたりのパルス数(ドライブスプロケットからの検出数)
 volatile int PulseCount = 0;                                  //回転速度センサーからのパルス数 
-int CurrentSpeed = 0;                                         //現在の車速
+float CurrentSpeed = 0.0;                                     //現在の車速
 
 //車速変化の状態(加速、減速、等速、停止または徐行中)
 enum ESpeedState {UP = 0,
@@ -186,7 +186,7 @@ void turnSignalControl() {
  */
 void calcMovingSpeed() {
   const int interval = 250;   //計測間隔 (単位:ミリ秒)
-  static int prevSpeed = 0;   //前回チェックした際の速度
+  static float prevSpeed = 0; //前回チェックした際の速度
   static long timer = 0;
 
   static float aveSpeed[] = {0, 0, 0, 0};
@@ -214,8 +214,8 @@ void calcMovingSpeed() {
     
     
     //前回チェックした際の速度と現在の速度を比較し、走行状態を判定
-    if (CurrentSpeed <= 18) {
-      //停止、または徐行中（18km/h以下）
+    if (CurrentSpeed < 20) {
+      //停止、または徐行中（20km/hより低い）
       CurrentSpeedState = ESpeedState::STOP_OR_SLOW;
       
     } else if ( CurrentSpeed == prevSpeed ) {
