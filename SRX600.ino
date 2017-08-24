@@ -278,8 +278,15 @@ void turnSignalAutoCancelControl() {
     timer = millis();
     timerStart = true;
     
-    //1秒後にOFF
-    lightingTime = 1000;
+    if (prevSpeedState == ESpeedState::STOP_OR_SLOW) {
+        //停止/徐行中から移行した場合、1秒後にOFF
+        lightingTime = 1000;
+        
+    } else if (prevSpeedState == ESpeedState::DOWN) {
+        //減速から移行した場合、2秒後にOFF
+        lightingTime = 2000;
+        
+    }
     
   } else if (CurrentSpeedState == ESpeedState::STOP_OR_SLOW || 
               CurrentSpeedState == ESpeedState::DOWN) {
