@@ -29,7 +29,7 @@ ETurnSignalState CurrentTurnSignalState
 const int PIN_INTERRUPT_SPEED_PULSE = 2;                      //回転速度センサーからの割込みピン
 const float NUMBER_OF_PULSES_PER_METER = 23.0;                //1mあたりのパルス数(ドライブスプロケットからの検出数)
 volatile int PulseCount = 0;                                  //回転速度センサーからのパルス数 
-float CurrentSpeed = 0.0;                                     //現在の車速
+int CurrentSpeed = 0;                                         //現在の車速
 
 //車速変化の状態(加速、減速、等速、停止または徐行中)
 enum ESpeedState {UP = 0,
@@ -186,7 +186,7 @@ void turnSignalControl() {
  */
 void calcMovingSpeed() {
   const int interval = 250;   //計測間隔 (単位:ミリ秒)
-  static float prevSpeed = 0; //前回チェックした際の速度
+  static int prevSpeed = 0;   //前回チェックした際の速度
   static long timer = 0;
 
   static float aveSpeed[] = {0, 0, 0, 0};
@@ -214,8 +214,8 @@ void calcMovingSpeed() {
     
     
     //前回チェックした際の速度と現在の速度を比較し、走行状態を判定
-    if (CurrentSpeed < 20) {
-      //停止、または徐行中（20km/hより低い）
+    if (CurrentSpeed <= 25) {
+      //停止、または徐行中（25km/h以下）
       CurrentSpeedState = ESpeedState::STOP_OR_SLOW;
       
     } else if ( CurrentSpeed == prevSpeed ) {
@@ -259,20 +259,22 @@ void turnSignalAutoCancelControl() {
 
   //走行中にウインカースイッチをOFF→ON
   if (CurrentTurnSignalState == ETurnSignalState::ON &&
-        prevTurnSignalState != CurrentTurnSignalState) {
+        prevTurnSignalState != CurrentTurnSignalState &&
+          CurrentSpeed > 40) {
     //タイマースタート
     timer = millis();
     timerStart = true;
 
     //2秒後にOFF
     lightingTime = 2000;
+    
   }
-
-  //「減速/停止/徐行中」から「加速/等速」状態へ移行したら、タイマースタート
+  
   if ((prevSpeedState == ESpeedState::STOP_OR_SLOW ||
         prevSpeedState == ESpeedState::DOWN) &&
           (CurrentSpeedState == ESpeedState::UP ||
            CurrentSpeedState == ESpeedState::KEEP)) {
+    //「減速/停止/徐行中」から「加速/等速」状態へ移行したら、タイマースタート
     
     //タイマースタート
     timer = millis();
@@ -289,7 +291,7 @@ void turnSignalAutoCancelControl() {
     }
     
   } else if (CurrentSpeedState == ESpeedState::STOP_OR_SLOW || 
-              CurrentSpeedState == ESpeedState::DOWN) {
+              (CurrentSpeedState == ESpeedState::DOWN && CurrentSpeed < 40)) {
                 
     //「減速/停止/徐行中」はウインカーOFFしない
     timerStart = false;
