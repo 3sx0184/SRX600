@@ -79,17 +79,6 @@ void loop() {
   
   //デバッグコード
 //  Serial.println( CurrentSpeed );
-//  
-//  if ( CurrentSpeedState == ESpeedState::KEEP ) {
-//    Serial.println( "KEEP" );
-//  } else if ( CurrentSpeedState == ESpeedState::ALMOST_STOP ) {
-//    Serial.println( "ALMOST_STOP" );
-//  } else if ( CurrentSpeedState == ESpeedState::UP ) {
-//    Serial.println( "UP" );
-//  } else {
-//    Serial.println( "SLOW_DOWN" );
-//  }
-
 }
 
 
@@ -214,8 +203,8 @@ void calcMovingSpeed() {
     
     
     //前回チェックした際の速度と現在の速度を比較し、走行状態を判定
-    if (CurrentSpeed >= 35) {
-      //通常走行中（35km/h以上）
+    if (CurrentSpeed >= 40) {
+      //通常走行中（40km/h以上）
       CurrentSpeedState = ESpeedState::NORMAL_RUNNING;
       
     } else if (CurrentSpeed <= 25) {
@@ -263,7 +252,7 @@ void turnSignalAutoCancelControl() {
       case ESpeedState::NORMAL_RUNNING:
       
         //通常走行中にウインカースイッチをOFF→ON
-        if (prevTurnSignalState != ETurnSignalState::OFF) {
+        if (prevTurnSignalState == ETurnSignalState::OFF) {
                   
           //タイマースタート
           timer = millis();
@@ -278,6 +267,13 @@ void turnSignalAutoCancelControl() {
             lightingTime = 2000;
             
           }
+        //「徐行中」から「通常走行中」状態へ移行したら、タイマースタート
+        } else if (prevSpeedState == ESpeedState::SLOW_RUNNING) {
+          
+          //タイマースタート
+          timer = millis();
+          timerStart = true;
+          lightingTime = 1000;
         }
         break;
     
