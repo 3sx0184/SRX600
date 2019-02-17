@@ -11,22 +11,23 @@
 
 
 //ヘッドライト関連
-const int PIN_ANALOG_INPUT_CDS_SENSOR = 14;                   //CDSからの電圧
-const int PIN_ANALOG_INPUT_HEADLIGHT_ONOFF_THRESHOLD = 15;    //5Vを半固定抵抗で分圧した、ヘッドライトOn/Offの閾値電圧
-const int PIN_DIGITAL_OUTPUT_HEADLIGHT_RELAY = 9;             //ヘッドライトのリレー
+const int PIN_ANALOG_INPUT_CDS_SENSOR = 8;                    //CDSからの電圧
+const int PIN_DIGITAL_OUTPUT_HEADLIGHT_RELAY = 21;            //ヘッドライトのリレー
+const int PIN_DIGITAL_INPUT_NEUTRAL = 7;                      //ニュートラルスイッチ
+
 
 //ウインカー関連
-const int PIN_DIGITAL_INPUT_TURNSIGNAL_LEFT_SW = 7;           //ウインカー左スイッチからの信号
-const int PIN_DIGITAL_INPUT_TURNSIGNAL_RIGHT_SW = 8;          //ウインカー右スイッチからの信号
-const int PIN_DIGITAL_INPUT_TURNSIGNAL_CANCEL_SW = 4;         //ウインカーキャンセルスイッチからの信号
-const int PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_RELAY = 6;       //ウインカー左のリレー
-const int PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_RELAY = 5;      //ウインカー右のリレー
+const int PIN_DIGITAL_INPUT_TURNSIGNAL_LEFT_SW = 4;           //ウインカー左スイッチからの信号(濃茶)
+const int PIN_DIGITAL_INPUT_TURNSIGNAL_CANCEL_SW = 5;         //ウインカーキャンセルスイッチからの信号
+const int PIN_DIGITAL_INPUT_TURNSIGNAL_RIGHT_SW = 6;          //ウインカー右スイッチからの信号(濃緑)
+const int PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_RELAY = 22;     //ウインカー右のリレー(濃緑)
+const int PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_RELAY = 23;      //ウインカー左のリレー(濃茶)
 enum ETurnSignalState {OFF = 0, ON = 1};                      //ウインカーの状態
 ETurnSignalState CurrentTurnSignalState
                                 = ETurnSignalState::OFF;
 
 //速度計測関連
-const int PIN_INTERRUPT_SPEED_PULSE = 2;                      //回転速度センサーからの割込みピン
+const int PIN_INTERRUPT_SPEED_PULSE = 1;                      //回転速度センサーからの割込みピン
 const float NUMBER_OF_PULSES_PER_METER = 23.0;                //1mあたりのパルス数(ドライブスプロケットからの検出数)
 volatile int PulseCount = 0;                                  //回転速度センサーからのパルス数 
 int CurrentSpeed = 0;                                         //現在の車速
@@ -46,6 +47,7 @@ ESpeedState CurrentSpeedState = ESpeedState::ALMOST_STOP;     //車速変化の�
  */
 void setup() {
   pinMode(PIN_DIGITAL_OUTPUT_HEADLIGHT_RELAY, OUTPUT);
+  pinMode(PIN_DIGITAL_INPUT_NEUTRAL, INPUT);
   
   pinMode(PIN_DIGITAL_INPUT_TURNSIGNAL_LEFT_SW, INPUT);
   pinMode(PIN_DIGITAL_INPUT_TURNSIGNAL_RIGHT_SW, INPUT);
@@ -78,7 +80,7 @@ void loop() {
   turnSignalAutoCancelControl();
   
   //デバッグコード
-//  Serial.println( CurrentSpeed );
+//  Serial.println( PulseCount );
 }
 
 
@@ -92,24 +94,28 @@ void headLightControl() {
   static int currentState = LOW;
   static bool timerStart = false;
   static long timer = 0;
-
-  int i = 0;
   
-  //CDSの電圧
-  i = analogRead(PIN_ANALOG_INPUT_CDS_SENSOR);
-  float cdsV = i * 5.0 / 1023.0;
-
-  //ON/OFF閾値 
-  i = analogRead(PIN_ANALOG_INPUT_HEADLIGHT_ONOFF_THRESHOLD);
-  float threshold = i * 5.0 / 1023.0;
-
   prevState = currentState;
-  if (cdsV > threshold) {
-    currentState = HIGH;
-  } else if (cdsV < threshold - 0.2) {
-    currentState = LOW;
-  }
 
+  if (digitalRead(PIN_DIGITAL_INPUT_NEUTRAL) == HIGH) {
+    //ニュートラルに入ったらLOW
+    Serial.println( "LOW" );
+    currentState = LOW;
+  } else {
+    //CDSの電圧
+    int i = analogRead(PIN_ANALOG_INPUT_CDS_SENSOR);
+    float cdsV = i * 5.0 / 1023.0;
+  
+    //ON/OFF閾値 
+    float threshold = 2.5;
+    
+    if (cdsV > threshold) {
+      currentState = HIGH;
+    } else if (cdsV < threshold - 0.2) {
+      currentState = LOW;
+    }
+  }
+  
   if (currentState != prevState) {
     timerStart = true;
     timer = millis();
