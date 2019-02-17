@@ -1,5 +1,5 @@
 /*
- * Arduino Pro Miniにて、
+ * Arduinoにて、
  *  バイクの
  *    ・ヘッドライトの自動点灯
  *    ・ウインカーのOn/Off 自動キャンセル
@@ -7,6 +7,7 @@
  *
  *  created 2017/07/02 高橋夏彦
  *  updated 2017/08/26 オートキャンセル Ver-2.0.0
+ *  updated 2019/02/17 Arduino Microに以降
  */
 
 
@@ -99,15 +100,14 @@ void headLightControl() {
 
   if (digitalRead(PIN_DIGITAL_INPUT_NEUTRAL) == HIGH) {
     //ニュートラルに入ったらLOW
-    Serial.println( "LOW" );
     currentState = LOW;
   } else {
     //CDSの電圧
     int i = analogRead(PIN_ANALOG_INPUT_CDS_SENSOR);
     float cdsV = i * 5.0 / 1023.0;
-  
+ 
     //ON/OFF閾値 
-    float threshold = 2.5;
+    float threshold = 3.3;
     
     if (cdsV > threshold) {
       currentState = HIGH;
