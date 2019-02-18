@@ -7,8 +7,10 @@
  *
  *  created 2017/07/02 高橋夏彦
  *  updated 2017/08/26 オートキャンセル Ver-2.0.0
- *  updated 2019/02/17 Arduino Microに以降
+ *  updated 2019/02/17 Arduino Microに移行
  */
+#include <Wire.h> //I2C Arduino Library
+#define address 0x1E //0011110b, I2C 7bit address of HMC5883
 
 
 //ヘッドライト関連
@@ -23,7 +25,7 @@ const int PIN_DIGITAL_INPUT_TURNSIGNAL_CANCEL_SW = 5;         //ウインカー�
 const int PIN_DIGITAL_INPUT_TURNSIGNAL_RIGHT_SW = 6;          //ウインカー右スイッチからの信号(濃緑)
 const int PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_RELAY = 22;     //ウインカー右のリレー(濃緑)
 const int PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_RELAY = 23;      //ウインカー左のリレー(濃茶)
-enum ETurnSignalState {OFF = 0, ON = 1};                      //ウインカーの状態
+enum ETurnSignalState {OFF = 0, LEFT = 1, RIGHT = 2};         //ウインカーの状態
 ETurnSignalState CurrentTurnSignalState
                                 = ETurnSignalState::OFF;
 
@@ -41,12 +43,30 @@ enum ESpeedState {NORMAL_RUNNING = 0,
 
 ESpeedState CurrentSpeedState = ESpeedState::ALMOST_STOP;     //車速変化の現在の状態
 
+//地磁気センサーによるオートキャンセル関連
+int heading = 0;
+struct RANGE {
+  int from;
+  int to;
+};
+RANGE cancelRange1;
+RANGE cancelRange2;
 
 /*
  * setup() 
  * 
  */
 void setup() {
+  Serial.begin( 9600 );
+  
+  //地磁気センサー関連
+  Wire.begin();
+  Wire.beginTransmission(address); //open communication with HMC5883
+  Wire.write(0x02); //select mode register
+  Wire.write(0x00); //continuous measurement mode
+  Wire.endTransmission();
+
+  //ピン設定
   pinMode(PIN_DIGITAL_OUTPUT_HEADLIGHT_RELAY, OUTPUT);
   pinMode(PIN_DIGITAL_INPUT_NEUTRAL, INPUT);
   
@@ -57,8 +77,6 @@ void setup() {
   pinMode(PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_RELAY, OUTPUT);
   
   attachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT_SPEED_PULSE), pulseCounter, RISING );
-  
-  Serial.begin( 9600 );
 }
 
 
@@ -79,6 +97,9 @@ void loop() {
   
   //ウインカーオートキャンセル
   turnSignalAutoCancelControl();
+
+  //方位によるウインカーオートキャンセル
+  headingCancel();
   
   //デバッグコード
 //  Serial.println( PulseCount );
@@ -155,7 +176,8 @@ void turnSignalControl() {
   if (tl == HIGH) {
     digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_RELAY, HIGH);
     digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_RELAY, LOW);
-    CurrentTurnSignalState = ETurnSignalState::ON;
+    setLeftTurn();
+    CurrentTurnSignalState = ETurnSignalState::LEFT;
   }
 
   // 右ウインカースイッチのチェック
@@ -163,7 +185,8 @@ void turnSignalControl() {
   if (tr == HIGH) {
     digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_RELAY, LOW);
     digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_RELAY, HIGH);
-    CurrentTurnSignalState = ETurnSignalState::ON;
+    setRightTurn();
+    CurrentTurnSignalState = ETurnSignalState::RIGHT;
   }
   
   // ウインカーキャンセルスイッチのチェック
@@ -252,7 +275,8 @@ void turnSignalAutoCancelControl() {
   static long timer = 0;
   static int lightingTime = 0;
 
-  if (CurrentTurnSignalState == ETurnSignalState::ON) {
+  if (CurrentTurnSignalState == ETurnSignalState::LEFT || 
+        CurrentTurnSignalState == ETurnSignalState::RIGHT) {
     
     switch (CurrentSpeedState) {
       case ESpeedState::NORMAL_RUNNING:
@@ -330,5 +354,105 @@ void turnSignalAutoCancelControl() {
   
   prevTurnSignalState = CurrentTurnSignalState;
   prevSpeedState = CurrentSpeedState;
+}
+
+
+void headingCancel() {
+  
+  heading = angleRead();
+  
+  if (CurrentTurnSignalState == ETurnSignalState::LEFT || 
+        CurrentTurnSignalState == ETurnSignalState::RIGHT) {
+
+    if ((cancelRange1.from <= heading && heading <= cancelRange1.to) || 
+          (cancelRange2.from <= heading && heading <= cancelRange2.to)) {
+      //ウインカーOFF
+      digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_RELAY, LOW);
+      digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_RELAY, LOW);
+      CurrentTurnSignalState = ETurnSignalState::OFF;
+    }
+  }
+  
+  Serial.print("mode = ");
+  if (CurrentTurnSignalState == ETurnSignalState::LEFT) {
+    Serial.print("Left ");
+  } else if (CurrentTurnSignalState == ETurnSignalState::RIGHT) {
+    Serial.print("Right ");
+  } else {
+    Serial.print("Off ");
+  }
+  Serial.print("heading = ");Serial.print(heading);
+  Serial.print(" cancelRange1.from  = ");Serial.print(cancelRange1.from );
+  Serial.print(" cancelRange1.to  = ");Serial.print(cancelRange1.to );
+  Serial.print(" cancelRange2.from  = ");Serial.print( cancelRange2.from );
+  Serial.print(" cancelRange2.to  = " );Serial.print(cancelRange2.to );
+  Serial.println("");
+}
+
+//左ターンの場合
+void setLeftTurn() {
+  heading = angleRead();
+
+  cancelRange1.from = 0;
+  cancelRange1.to = 0;
+  cancelRange2.from = 0;
+  cancelRange2.to = 0;
+
+  float startAngle = heading - 60;
+  float endAngle = heading - 180;
+  if (startAngle >= 0 && endAngle >= 0) {
+    cancelRange1.from = endAngle;
+    cancelRange1.to = startAngle;
+  } else if (startAngle >= 0 && endAngle < 0) {
+    cancelRange1.from = 0;
+    cancelRange1.to = startAngle;
+    cancelRange2.from = endAngle + 360;
+    cancelRange2.to = 360;
+  } else {
+    cancelRange1.from = endAngle + 360;
+    cancelRange1.to = startAngle + 360;
+  }
+}
+
+//右ターンの場合
+void setRightTurn() {
+  heading = angleRead();
+
+  cancelRange1.from = 0;
+  cancelRange1.to = 0;
+  cancelRange2.from = 0;
+  cancelRange2.to = 0;
+
+  float startAngle = heading + 60;
+  float endAngle = heading + 180;
+  if (startAngle < 360 && endAngle < 360) {
+    cancelRange1.from = startAngle;
+    cancelRange1.to = endAngle;
+  } else if (startAngle < 360 && endAngle > 360) {
+    cancelRange1.from = startAngle;
+    cancelRange1.to = 360;
+    cancelRange2.from = 0;
+    cancelRange2.to = endAngle - 360;
+  } else {
+    cancelRange1.from = startAngle- 360;
+    cancelRange1.to = endAngle  - 360;
+  }
+}
+
+int angleRead(){
+  int x,y,z; //triple axis data
+  Wire.beginTransmission(address);
+  Wire.write(0x03); //select register 3, X MSB register
+  Wire.endTransmission();
+  Wire.requestFrom(address, 6);
+  if(6<=Wire.available()){
+    x = Wire.read()<<8; //X msb
+    x |= Wire.read(); //X lsb
+    z = Wire.read()<<8; //Z msb
+    z |= Wire.read(); //Z lsb
+    y = Wire.read()<<8; //Y msb
+    y |= Wire.read(); //Y lsb
+  }
+  return atan2((x + 20) , (y + 20)*(-1)) * RAD_TO_DEG + 180;//40と20は補正値
 }
 
