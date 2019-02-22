@@ -9,8 +9,8 @@
  *  updated 2017/08/26 オートキャンセル Ver-2.0.0
  *  updated 2019/02/17 Arduino Microに移行
  */
-#include <Wire.h> //I2C Arduino Library
-#define address 0x1E //0011110b, I2C 7bit address of HMC5883
+#include <Wire.h>
+#include <HMC5883L.h>
 
 
 //ヘッドライト関連
@@ -44,6 +44,8 @@ enum ESpeedState {NORMAL_RUNNING = 0,
 ESpeedState CurrentSpeedState = ESpeedState::ALMOST_STOP;     //車速変化の現在の状態
 
 //地磁気センサーによるオートキャンセル関連
+HMC5883L compass;
+int previousDegree;
 int heading = 0;
 struct RANGE {
   int from;
@@ -51,6 +53,7 @@ struct RANGE {
 };
 RANGE cancelRange1;
 RANGE cancelRange2;
+const int CANCEL_ANGLE = 50;  //ウィンカーを消す角度
 
 /*
  * setup() 
@@ -60,12 +63,23 @@ void setup() {
   Serial.begin( 9600 );
   
   //地磁気センサー関連
-  Wire.begin();
-  Wire.beginTransmission(address); //open communication with HMC5883
-  Wire.write(0x02); //select mode register
-  Wire.write(0x00); //continuous measurement mode
-  Wire.endTransmission();
+  // Initialize HMC5883L
+  while (!compass.begin())
+  {
+    delay(500);
+  }
+  // Set measurement range
+  compass.setRange(HMC5883L_RANGE_1_3GA);
+  // Set measurement mode
+  compass.setMeasurementMode(HMC5883L_CONTINOUS);
+  // Set data rate
+  compass.setDataRate(HMC5883L_DATARATE_30HZ);
+  // Set number of samples averaged
+  compass.setSamples(HMC5883L_SAMPLES_8);
+  // Set calibration offset. See HMC5883L_calibration.ino
+  compass.setOffset(-256, -69); 
 
+  
   //ピン設定
   pinMode(PIN_DIGITAL_OUTPUT_HEADLIGHT_RELAY, OUTPUT);
   pinMode(PIN_DIGITAL_INPUT_NEUTRAL, INPUT);
@@ -373,20 +387,20 @@ void headingCancel() {
     }
   }
   
-  Serial.print("mode = ");
-  if (CurrentTurnSignalState == ETurnSignalState::LEFT) {
-    Serial.print("Left ");
-  } else if (CurrentTurnSignalState == ETurnSignalState::RIGHT) {
-    Serial.print("Right ");
-  } else {
-    Serial.print("Off ");
-  }
-  Serial.print("heading = ");Serial.print(heading);
-  Serial.print(" cancelRange1.from  = ");Serial.print(cancelRange1.from );
-  Serial.print(" cancelRange1.to  = ");Serial.print(cancelRange1.to );
-  Serial.print(" cancelRange2.from  = ");Serial.print( cancelRange2.from );
-  Serial.print(" cancelRange2.to  = " );Serial.print(cancelRange2.to );
-  Serial.println("");
+//  Serial.print("mode = ");
+//  if (CurrentTurnSignalState == ETurnSignalState::LEFT) {
+//    Serial.print("Left ");
+//  } else if (CurrentTurnSignalState == ETurnSignalState::RIGHT) {
+//    Serial.print("Right ");
+//  } else {
+//    Serial.print("Off ");
+//  }
+//  Serial.print("heading = ");Serial.print(heading);
+//  Serial.print(" cancelRange1.from  = ");Serial.print(cancelRange1.from );
+//  Serial.print(" cancelRange1.to  = ");Serial.print(cancelRange1.to );
+//  Serial.print(" cancelRange2.from  = ");Serial.print( cancelRange2.from );
+//  Serial.print(" cancelRange2.to  = " );Serial.print(cancelRange2.to );
+//  Serial.println("");
 }
 
 //左ターンの場合
@@ -398,7 +412,7 @@ void setLeftTurn() {
   cancelRange2.from = 0;
   cancelRange2.to = 0;
 
-  float startAngle = heading - 60;
+  float startAngle = heading - CANCEL_ANGLE;
   float endAngle = heading - 180;
   if (startAngle >= 0 && endAngle >= 0) {
     cancelRange1.from = endAngle;
@@ -423,7 +437,7 @@ void setRightTurn() {
   cancelRange2.from = 0;
   cancelRange2.to = 0;
 
-  float startAngle = heading + 60;
+  float startAngle = heading + CANCEL_ANGLE;
   float endAngle = heading + 180;
   if (startAngle < 360 && endAngle < 360) {
     cancelRange1.from = startAngle;
@@ -440,19 +454,60 @@ void setRightTurn() {
 }
 
 int angleRead(){
-  int x,y,z; //triple axis data
-  Wire.beginTransmission(address);
-  Wire.write(0x03); //select register 3, X MSB register
-  Wire.endTransmission();
-  Wire.requestFrom(address, 6);
-  if(6<=Wire.available()){
-    x = Wire.read()<<8; //X msb
-    x |= Wire.read(); //X lsb
-    z = Wire.read()<<8; //Z msb
-    z |= Wire.read(); //Z lsb
-    y = Wire.read()<<8; //Y msb
-    y |= Wire.read(); //Y lsb
+  long x = micros();
+  Vector norm = compass.readNormalize();
+
+  // Calculate heading
+  float heading = atan2(norm.YAxis, norm.XAxis);
+
+  // Set declination angle on your location and fix heading
+  // You can find your declination on: http://magnetic-declination.com/
+  // (+) Positive or (-) for negative
+  // For Bytom / Poland declination angle is 4'26E (positive)
+  // Formula: (deg + (min / 60.0)) / (180 / M_PI);
+  float declinationAngle = (-7.0 + (25.0 / 60.0)) / (180 / M_PI);
+  heading += declinationAngle;
+
+  // Correct for heading < 0deg and heading > 360deg
+  if (heading < 0)
+  {
+    heading += 2 * PI;
   }
-  return atan2((x + 20) , (y + 20)*(-1)) * RAD_TO_DEG + 180;//40と20は補正値
+ 
+  if (heading > 2 * PI)
+  {
+    heading -= 2 * PI;
+  }
+
+  // Convert to degrees
+  float headingDegrees = heading * 180/M_PI; 
+
+  // Fix HMC5883L issue with angles
+  float fixedHeadingDegrees;
+ 
+  if (headingDegrees >= 1 && headingDegrees < 240)
+  {
+    fixedHeadingDegrees = map(headingDegrees, 0, 239, 0, 179);
+  } else
+  if (headingDegrees >= 240)
+  {
+    fixedHeadingDegrees = map(headingDegrees, 240, 360, 180, 360);
+  }
+
+  // Smooth angles rotation for +/- 3deg
+  int smoothHeadingDegrees = round(fixedHeadingDegrees);
+
+  if (smoothHeadingDegrees < (previousDegree + 3) && smoothHeadingDegrees > (previousDegree - 3))
+  {
+    smoothHeadingDegrees = previousDegree;
+  }
+  
+  previousDegree = smoothHeadingDegrees;
+
+  // One loop: ~5ms @ 115200 serial.
+  // We need delay ~28ms for allow data rate 30Hz (~33ms)
+  //delay(30);
+  
+  return smoothHeadingDegrees;
 }
 
