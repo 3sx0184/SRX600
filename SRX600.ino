@@ -142,7 +142,7 @@ void headLightControl() {
     float cdsV = i * 5.0 / 1023.0;
  
     //ON/OFF閾値 
-    float threshold = 3.3;
+    float threshold = 1.5;
     
     if (cdsV > threshold) {
       currentState = HIGH;
