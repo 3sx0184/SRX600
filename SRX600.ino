@@ -46,14 +46,14 @@ ESpeedState CurrentSpeedState = ESpeedState::ALMOST_STOP;     //車速変化の�
 //地磁気センサーによるオートキャンセル関連
 HMC5883L compass;
 int previousDegree;
-int heading = 0;
+int onHeading = 0;
 struct RANGE {
   int from;
   int to;
 };
 RANGE cancelRange1;
 RANGE cancelRange2;
-const int CANCEL_ANGLE = 50;  //ウィンカーを消す角度
+const int CANCEL_ANGLE = 40;  //ウィンカーを消す角度
 
 /*
  * setup() 
@@ -373,7 +373,7 @@ void turnSignalAutoCancelControl() {
 
 void headingCancel() {
   
-  heading = angleRead();
+  int heading = angleRead();
   
   if (CurrentTurnSignalState == ETurnSignalState::LEFT || 
         CurrentTurnSignalState == ETurnSignalState::RIGHT) {
@@ -384,28 +384,31 @@ void headingCancel() {
       digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_LEFT_RELAY, LOW);
       digitalWrite(PIN_DIGITAL_OUTPUT_TURNSIGNAL_RIGHT_RELAY, LOW);
       CurrentTurnSignalState = ETurnSignalState::OFF;
+      onHeading = 0;
     }
   }
   
-//  Serial.print("mode = ");
-//  if (CurrentTurnSignalState == ETurnSignalState::LEFT) {
-//    Serial.print("Left ");
-//  } else if (CurrentTurnSignalState == ETurnSignalState::RIGHT) {
-//    Serial.print("Right ");
-//  } else {
-//    Serial.print("Off ");
-//  }
-//  Serial.print("heading = ");Serial.print(heading);
-//  Serial.print(" cancelRange1.from  = ");Serial.print(cancelRange1.from );
-//  Serial.print(" cancelRange1.to  = ");Serial.print(cancelRange1.to );
-//  Serial.print(" cancelRange2.from  = ");Serial.print( cancelRange2.from );
-//  Serial.print(" cancelRange2.to  = " );Serial.print(cancelRange2.to );
-//  Serial.println("");
+  Serial.print("mode = ");
+  if (CurrentTurnSignalState == ETurnSignalState::LEFT) {
+    Serial.print("Left ");
+  } else if (CurrentTurnSignalState == ETurnSignalState::RIGHT) {
+    Serial.print("Right ");
+  } else {
+    Serial.print("Off ");
+  }
+  Serial.print("heading = ");Serial.print(heading);
+  Serial.print(" on = ");Serial.print(onHeading);
+  Serial.print(" cancelRange1.from  = ");Serial.print(cancelRange1.from );
+  Serial.print(" cancelRange1.to  = ");Serial.print(cancelRange1.to );
+  Serial.print(" cancelRange2.from  = ");Serial.print( cancelRange2.from );
+  Serial.print(" cancelRange2.to  = " );Serial.print(cancelRange2.to );
+  Serial.println("");
 }
 
 //左ターンの場合
 void setLeftTurn() {
-  heading = angleRead();
+  int heading = angleRead();
+  onHeading = heading;
 
   cancelRange1.from = 0;
   cancelRange1.to = 0;
@@ -430,7 +433,8 @@ void setLeftTurn() {
 
 //右ターンの場合
 void setRightTurn() {
-  heading = angleRead();
+  int heading = angleRead();
+  onHeading = heading;
 
   cancelRange1.from = 0;
   cancelRange1.to = 0;
@@ -506,7 +510,7 @@ int angleRead(){
 
   // One loop: ~5ms @ 115200 serial.
   // We need delay ~28ms for allow data rate 30Hz (~33ms)
-  //delay(30);
+  delay(30);
   
   return smoothHeadingDegrees;
 }
